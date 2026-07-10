@@ -1,65 +1,118 @@
-import { useCallback, useEffect, useState } from 'react'
-import { authApi } from './api/client'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { authApi, type NotionAuthStatus } from './api/client'
 import { AuthPage } from './components/AuthPage'
 import { KanbanBoard } from './components/KanbanBoard'
 import { LoadingScreen } from './components/LoadingScreen'
+import { OAuthReturnPage } from './components/OAuthReturnPage'
 import { SelectDbPage } from './components/SelectDbPage'
 import { useTelegram } from './hooks/useTelegram'
+import {
+  clearOAuthReturnParams,
+  readOAuthReturnState,
+  type OAuthReturnState,
+} from './utils/oauthReturn'
 import { resolveTelegramUserId } from './utils/telegramUser'
 
 type AppStep = 'loading' | 'auth' | 'select-db' | 'board'
 
-function App() {
-  const { user, isReady, telegramUserId } = useTelegram()
-  const [step, setStep] = useState<AppStep>('loading')
+function stepFromStatus(status: NotionAuthStatus): AppStep {
+  if (status.authorized !== true) {
+    return 'auth'
+  }
 
-  console.log('user', user)
-  console.log('isReady', isReady)
-  console.log('telegramUserId', telegramUserId)
+  if (!status.selected_database_id) {
+    return 'select-db'
+  }
+
+  return 'board'
+}
+
+function App() {
+  const { user, isReady, tg, telegramUserId, isInTelegram } = useTelegram()
+  const [step, setStep] = useState<AppStep>('loading')
+  const [oauthReturn, setOauthReturn] = useState<OAuthReturnState | null>(() =>
+    readOAuthReturnState(),
+  )
+  const resolveInFlight = useRef(false)
+  const oauthHandled = useRef(false)
 
   const handleDatabaseSelected = useCallback(() => {
     setStep('board')
   }, [])
 
   const resolveStep = useCallback(async () => {
+    if (resolveInFlight.current) return
+    resolveInFlight.current = true
     setStep('loading')
 
-    const currentTelegramUserId = telegramUserId ?? resolveTelegramUserId()
-
-    if (!currentTelegramUserId) {
-      setStep('auth')
-      return
-    }
-
     try {
-      const status = await authApi.getNotionStatus()
+      let currentTelegramUserId = telegramUserId ?? resolveTelegramUserId()
 
-      if (!status.authorized) {
-        setStep('auth')
-      } else if (!status.selected_database_id) {
-        setStep('select-db')
-      } else {
-        setStep('board')
+      if (!currentTelegramUserId) {
+        await new Promise((resolve) => window.setTimeout(resolve, 400))
+        currentTelegramUserId = telegramUserId ?? resolveTelegramUserId()
       }
+
+      if (!currentTelegramUserId) {
+        setStep('auth')
+        return
+      }
+
+      const status = await authApi.getNotionStatus()
+      setStep(stepFromStatus(status))
     } catch {
       setStep('auth')
+    } finally {
+      resolveInFlight.current = false
     }
   }, [telegramUserId])
 
+  const handleOAuthContinue = useCallback(() => {
+    clearOAuthReturnParams()
+    setOauthReturn(null)
+    resolveStep()
+  }, [resolveStep])
+
   useEffect(() => {
+    if (!oauthReturn || oauthHandled.current) return
+
+    if (oauthReturn.status === 'success' && isInTelegram) {
+      oauthHandled.current = true
+      handleOAuthContinue()
+    }
+  }, [oauthReturn, isInTelegram, handleOAuthContinue])
+
+  useEffect(() => {
+    if (oauthReturn?.status === 'success' && isInTelegram) return
+    if (oauthReturn && !isInTelegram) return
+
     if (isReady) {
       resolveStep()
     }
-  }, [isReady, resolveStep])
+  }, [isReady, resolveStep, oauthReturn, isInTelegram])
 
-    useEffect(() => {
-      // Логируем все, что пришло от Telegram
-      console.log('📱 window.Telegram:', window.Telegram);
-      console.log('📱 WebApp:', window.Telegram?.WebApp);
-      console.log('📱 initDataUnsafe:', window.Telegram?.WebApp?.initDataUnsafe);
-      console.log('📱 user:', window.Telegram?.WebApp?.initDataUnsafe?.user);
-      console.log('📱 user.id:', window.Telegram?.WebApp?.initDataUnsafe?.user?.id);
-    }, []);
+  useEffect(() => {
+    const handleReturn = () => {
+      if (document.visibilityState === 'visible') {
+        resolveStep()
+      }
+    }
+
+    document.addEventListener('visibilitychange', handleReturn)
+    tg?.onEvent('viewportChanged', handleReturn)
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleReturn)
+    }
+  }, [tg, resolveStep])
+
+  if (oauthReturn && !(oauthReturn.status === 'success' && isInTelegram)) {
+    return (
+      <div className="app">
+        <OAuthReturnPage state={oauthReturn} onContinue={handleOAuthContinue} />
+      </div>
+    )
+  }
 
   const renderContent = () => {
     switch (step) {
@@ -70,7 +123,7 @@ function App() {
           />
         )
       case 'auth':
-        return <AuthPage onAuthorized={resolveStep} />
+        return <AuthPage />
       case 'select-db':
         return <SelectDbPage onDatabaseSelected={handleDatabaseSelected} />
       case 'board':

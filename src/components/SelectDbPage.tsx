@@ -29,7 +29,7 @@ export const SelectDbPage: React.FC<SelectDbPageProps> = ({
     try {
       const status = await authApi.getNotionStatus()
 
-      if (status.selected_database_id) {
+      if (status.authorized === true && status.selected_database_id) {
         onDatabaseSelected?.()
       }
     } catch {

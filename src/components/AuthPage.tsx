@@ -1,58 +1,13 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useState } from 'react'
 import type React from 'react'
 import { authApi } from '../api/client'
 import { useTelegram } from '../hooks/useTelegram'
 import { resolveTelegramUserId } from '../utils/telegramUser'
 
-interface AuthPageProps {
-  onAuthorized?: () => void
-}
-
-export const AuthPage: React.FC<AuthPageProps> = ({ onAuthorized }) => {
-  const { isReady, tg, telegramUserId, isInTelegram } = useTelegram()
-  const [checking, setChecking] = useState(false)
+export const AuthPage: React.FC = () => {
+  const { isReady, tg, isInTelegram } = useTelegram()
   const [connecting, setConnecting] = useState(false)
   const [error, setError] = useState<string | null>(null)
-
-  const checkAuthStatus = useCallback(async () => {
-    const currentTelegramUserId = resolveTelegramUserId()
-
-    if (!currentTelegramUserId) {
-      // Проверяем, может быть id в URL?
-      const urlParams = new URLSearchParams(window.location.search);
-      const urlId = urlParams.get('telegram_id');
-      
-      if (urlId) {
-        // Если есть в URL, пробуем сохранить в состояние и продолжить
-        console.log('📌 Telegram ID из URL:', urlId);
-      } else {
-        setError(
-          'Не удалось определить пользователя Telegram. Убедитесь, что вы открыли приложение через Telegram Mini App.'
-        );
-        return;
-      }
-    }
-
-    try {
-      setChecking(true)
-      setError(null)
-      const status = await authApi.getNotionStatus()
-
-      if (status.authorized) {
-        onAuthorized?.()
-      }
-    } catch {
-      setError('Не удалось проверить статус подключения')
-    } finally {
-      setChecking(false)
-    }
-  }, [isInTelegram, onAuthorized])
-
-  useEffect(() => {
-    if (isReady && telegramUserId) {
-      checkAuthStatus()
-    }
-  }, [isReady, telegramUserId, checkAuthStatus])
 
   const handleConnect = () => {
     const currentTelegramUserId = resolveTelegramUserId()
@@ -104,7 +59,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({ onAuthorized }) => {
       <button
         type="button"
         onClick={handleConnect}
-        disabled={connecting || checking}
+        disabled={connecting}
         className="rounded-xl px-6 py-3 text-sm font-medium transition-opacity disabled:opacity-60"
         style={{
           backgroundColor: 'var(--tg-theme-button-color, #3390ec)',
@@ -121,7 +76,8 @@ export const AuthPage: React.FC<AuthPageProps> = ({ onAuthorized }) => {
       )}
 
       <p className="max-w-sm text-xs text-[var(--tg-theme-hint-color,#6b7280)]">
-        После авторизации в Notion вернитесь в Telegram и обновите приложение.
+        Откроется браузер для авторизации Notion. После подтверждения вы будете
+        перенаправлены обратно в Telegram.
       </p>
     </div>
   )

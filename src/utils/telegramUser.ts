@@ -168,13 +168,8 @@ export function isTelegramWebApp(): boolean {
 export function resolveTelegramUser(): TelegramUserData | null {
   const webApp = window.Telegram?.WebApp
 
-  console.log('Telegram', window.Telegram)
-
   const unsafeUser = webApp?.initDataUnsafe?.user
   const unsafeUserId = extractUserId(unsafeUser)
-
-  console.log('unsafeUser', unsafeUser)
-  console.log('unsafeUserId', unsafeUserId)
 
   if (unsafeUserId != null) {
     return toTelegramUser(unsafeUserId, unsafeUser as unknown as Record<string, unknown>)
@@ -206,41 +201,9 @@ export function resolveTelegramUser(): TelegramUserData | null {
 }
 
 export function resolveTelegramUserId(): number | null {
-  // 1. Сначала пробуем получить из URL (для отладки / fallback)
-  const urlId = getTelegramIdFromUrl();
-  if (urlId !== null) return urlId;
+  const user = resolveTelegramUser()
+  if (user) return user.id
 
-  // 2. Потом из Telegram WebApp
-  const webApp = window.Telegram?.WebApp;
-  const unsafeUser = webApp?.initDataUnsafe?.user;
-  const unsafeUserId = extractUserId(unsafeUser);
-  if (unsafeUserId != null) return unsafeUserId;
-
-  // 3. Потом из initData
-  const initDataCandidates = [
-    webApp?.initData,
-    (() => {
-      try {
-        return retrieveRawInitData();
-      } catch {
-        return null;
-      }
-    })(),
-  ];
-
-  for (const initData of initDataCandidates) {
-    if (!initData) continue;
-    const user = parseUserFromInitDataString(initData);
-    if (user) return user.id;
-  }
-
-  // 4. Потом из SDK
-  const sdkUser = getUserFromSdkInitData();
-  if (sdkUser) return sdkUser.id;
-
-  // 5. И в самом конце из launch params
-  const lpUser = getUserFromLaunchParams();
-  if (lpUser) return lpUser.id;
-
-  return null;
+  const urlId = getTelegramIdFromUrl()
+  return urlId
 }
