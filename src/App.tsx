@@ -5,6 +5,7 @@ import { KanbanBoard } from './components/KanbanBoard'
 import { LoadingScreen } from './components/LoadingScreen'
 import { SelectDbPage } from './components/SelectDbPage'
 import { useTelegram } from './hooks/useTelegram'
+import { resolveTelegramUserId } from './utils/telegramUser'
 
 type AppStep = 'loading' | 'auth' | 'select-db' | 'board'
 
@@ -19,7 +20,9 @@ function App() {
   const resolveStep = useCallback(async () => {
     setStep('loading')
 
-    if (!telegramUserId) {
+    const currentTelegramUserId = telegramUserId ?? resolveTelegramUserId()
+
+    if (!currentTelegramUserId) {
       setStep('auth')
       return
     }

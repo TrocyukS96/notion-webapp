@@ -1,5 +1,6 @@
 import axios, { type AxiosInstance, type AxiosRequestConfig } from 'axios'
 import type { CreateTaskData, Task, User } from '../components/types'
+import { resolveTelegramUserId } from '../utils/telegramUser'
 
 export const API_BASE_URL =
   import.meta.env.VITE_API_URL || 'https://tg-notion-server.onrender.com'
@@ -30,13 +31,12 @@ class ApiClient {
     })
 
     this.client.interceptors.request.use((config) => {
-      const tg = window.Telegram?.WebApp
-      const user = tg?.initDataUnsafe?.user
+      const telegramId = resolveTelegramUserId()
 
-      if (user?.id) {
+      if (telegramId) {
         config.params = {
           ...config.params,
-          telegram_id: user.id,
+          telegram_id: telegramId,
         }
       }
 

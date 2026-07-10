@@ -1,13 +1,11 @@
 import { useEffect, useState } from 'react'
-import type { User as TelegramSdkUser } from '@telegram-apps/sdk-react'
-
-interface TelegramUser extends TelegramSdkUser {
-  id: number
-  first_name: string
-  last_name?: string
-  username?: string
-  language_code?: string
-}
+import { init } from '@telegram-apps/sdk'
+import {
+  isTelegramWebApp,
+  resolveTelegramUser,
+  resolveTelegramUserId,
+  type TelegramUserData,
+} from '../utils/telegramUser'
 
 interface TelegramWebApp {
   ready: () => void
@@ -16,7 +14,7 @@ interface TelegramWebApp {
   openLink: (url: string) => void
   initData: string
   initDataUnsafe: {
-    user?: TelegramUser
+    user?: TelegramUserData
     query_id?: string
     auth_date?: string
     hash?: string
@@ -44,8 +42,9 @@ declare global {
 
 interface UseTelegramReturn {
   tg: TelegramWebApp | null
-  user: TelegramUser | null
+  user: TelegramUserData | null
   telegramUserId: number | null
+  isInTelegram: boolean
   isReady: boolean
   close: () => void
   expand: () => void
@@ -54,21 +53,31 @@ interface UseTelegramReturn {
 
 export function useTelegram(): UseTelegramReturn {
   const [tg, setTg] = useState<TelegramWebApp | null>(null)
-  const [user, setUser] = useState<TelegramUser | null>(null)
+  const [user, setUser] = useState<TelegramUserData | null>(null)
   const [isReady, setIsReady] = useState(false)
   const [theme, setTheme] = useState<'light' | 'dark'>('light')
 
   useEffect(() => {
+    try {
+      init()
+    } catch {
+      // SDK init is only available inside Telegram Mini App.
+    }
+
+    const syncUser = () => {
+      const resolvedUser = resolveTelegramUser()
+      if (resolvedUser) {
+        setUser(resolvedUser)
+      }
+    }
+
     const tgInstance = window.Telegram?.WebApp
 
     if (tgInstance) {
       tgInstance.ready()
+      tgInstance.expand()
       setTg(tgInstance)
-      setIsReady(true)
-
-      if (tgInstance.initDataUnsafe?.user) {
-        setUser(tgInstance.initDataUnsafe.user)
-      }
+      syncUser()
 
       setTheme(tgInstance.colorScheme || 'light')
       document.documentElement.dataset.theme = tgInstance.colorScheme || 'light'
@@ -82,6 +91,12 @@ export function useTelegram(): UseTelegramReturn {
       const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches
       document.documentElement.dataset.theme = prefersDark ? 'dark' : 'light'
     }
+
+    setIsReady(true)
+
+    const retryTimer = window.setTimeout(syncUser, 150)
+
+    return () => window.clearTimeout(retryTimer)
   }, [])
 
   const close = () => {
@@ -92,7 +107,8 @@ export function useTelegram(): UseTelegramReturn {
     tg?.expand()
   }
 
-  const telegramUserId = user?.id ?? tg?.initDataUnsafe?.user?.id ?? null
+  const telegramUserId = user?.id ?? resolveTelegramUserId()
+  const isInTelegram = isTelegramWebApp()
 
-  return { tg, user, telegramUserId, isReady, close, expand, theme }
+  return { tg, user, telegramUserId, isInTelegram, isReady, close, expand, theme }
 }
