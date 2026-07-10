@@ -31,13 +31,32 @@ class ApiClient {
     })
 
     this.client.interceptors.request.use((config) => {
-      const telegramId = resolveTelegramUserId()
+      let telegramId = resolveTelegramUserId()
+
+      if (!telegramId) {
+        const urlParams = new URLSearchParams(window.location.search);
+        const idFromUrl = urlParams.get('telegram_id');
+        if (idFromUrl) {
+          telegramId = Number(idFromUrl);
+        }
+      }
+
+      if (!telegramId) {
+        const tg = window.Telegram?.WebApp;
+        const user = tg?.initDataUnsafe?.user;
+        if (user?.id) {
+          telegramId = user.id;
+        }
+      }
+
 
       if (telegramId) {
         config.params = {
           ...config.params,
           telegram_id: telegramId,
-        }
+        };
+      } else {
+        console.warn('⚠️ telegram_id не найден! Убедитесь, что приложение открыто через Telegram.');
       }
 
       return config

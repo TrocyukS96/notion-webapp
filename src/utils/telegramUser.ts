@@ -9,6 +9,24 @@ import {
   parseLaunchParamsQuery,
 } from '@telegram-apps/transformers'
 
+function getTelegramIdFromUrl(): number | null {
+  const urlParams = new URLSearchParams(window.location.search);
+  const tgIdFromQuery = urlParams.get('telegram_id');
+  if (tgIdFromQuery) {
+    const id = Number(tgIdFromQuery);
+    if (Number.isFinite(id)) return id;
+  }
+
+  const hashParams = new URLSearchParams(window.location.hash.slice(1));
+  const tgIdFromHash = hashParams.get('telegram_id');
+  if (tgIdFromHash) {
+    const id = Number(tgIdFromHash);
+    if (Number.isFinite(id)) return id;
+  }
+
+  return null;
+}
+
 export interface TelegramUserData {
   id: number
   first_name: string
@@ -182,5 +200,41 @@ export function resolveTelegramUser(): TelegramUserData | null {
 }
 
 export function resolveTelegramUserId(): number | null {
-  return resolveTelegramUser()?.id ?? null
+  // 1. Сначала пробуем получить из URL (для отладки / fallback)
+  const urlId = getTelegramIdFromUrl();
+  if (urlId !== null) return urlId;
+
+  // 2. Потом из Telegram WebApp
+  const webApp = window.Telegram?.WebApp;
+  const unsafeUser = webApp?.initDataUnsafe?.user;
+  const unsafeUserId = extractUserId(unsafeUser);
+  if (unsafeUserId != null) return unsafeUserId;
+
+  // 3. Потом из initData
+  const initDataCandidates = [
+    webApp?.initData,
+    (() => {
+      try {
+        return retrieveRawInitData();
+      } catch {
+        return null;
+      }
+    })(),
+  ];
+
+  for (const initData of initDataCandidates) {
+    if (!initData) continue;
+    const user = parseUserFromInitDataString(initData);
+    if (user) return user.id;
+  }
+
+  // 4. Потом из SDK
+  const sdkUser = getUserFromSdkInitData();
+  if (sdkUser) return sdkUser.id;
+
+  // 5. И в самом конце из launch params
+  const lpUser = getUserFromLaunchParams();
+  if (lpUser) return lpUser.id;
+
+  return null;
 }

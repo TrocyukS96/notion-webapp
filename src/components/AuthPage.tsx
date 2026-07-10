@@ -18,12 +18,19 @@ export const AuthPage: React.FC<AuthPageProps> = ({ onAuthorized }) => {
     const currentTelegramUserId = resolveTelegramUserId()
 
     if (!currentTelegramUserId) {
-      setError(
-        isInTelegram
-          ? 'Не удалось определить пользователя Telegram. Перезапустите приложение.'
-          : 'Откройте приложение через Telegram, чтобы проверить статус.',
-      )
-      return
+      // Проверяем, может быть id в URL?
+      const urlParams = new URLSearchParams(window.location.search);
+      const urlId = urlParams.get('telegram_id');
+      
+      if (urlId) {
+        // Если есть в URL, пробуем сохранить в состояние и продолжить
+        console.log('📌 Telegram ID из URL:', urlId);
+      } else {
+        setError(
+          'Не удалось определить пользователя Telegram. Убедитесь, что вы открыли приложение через Telegram Mini App.'
+        );
+        return;
+      }
     }
 
     try {
