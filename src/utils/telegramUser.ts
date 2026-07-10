@@ -168,8 +168,14 @@ export function isTelegramWebApp(): boolean {
 export function resolveTelegramUser(): TelegramUserData | null {
   const webApp = window.Telegram?.WebApp
 
+  console.log('Telegram', window.Telegram)
+
   const unsafeUser = webApp?.initDataUnsafe?.user
   const unsafeUserId = extractUserId(unsafeUser)
+
+  console.log('unsafeUser', unsafeUser)
+  console.log('unsafeUserId', unsafeUserId)
+
   if (unsafeUserId != null) {
     return toTelegramUser(unsafeUserId, unsafeUser as unknown as Record<string, unknown>)
   }

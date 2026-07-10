@@ -52,6 +52,15 @@ function App() {
     }
   }, [isReady, resolveStep])
 
+    useEffect(() => {
+      // Логируем все, что пришло от Telegram
+      console.log('📱 window.Telegram:', window.Telegram);
+      console.log('📱 WebApp:', window.Telegram?.WebApp);
+      console.log('📱 initDataUnsafe:', window.Telegram?.WebApp?.initDataUnsafe);
+      console.log('📱 user:', window.Telegram?.WebApp?.initDataUnsafe?.user);
+      console.log('📱 user.id:', window.Telegram?.WebApp?.initDataUnsafe?.user?.id);
+    }, []);
+
   const renderContent = () => {
     switch (step) {
       case 'loading':
