@@ -1,8 +1,22 @@
 import axios, { type AxiosInstance, type AxiosRequestConfig } from 'axios'
 import type { CreateTaskData, Task, User } from '../components/types'
 
-const API_BASE_URL =
+export const API_BASE_URL =
   import.meta.env.VITE_API_URL || 'https://tg-notion-server.onrender.com'
+
+export interface NotionAuthStatus {
+  authorized: boolean
+  message?: string
+  has_refresh_token?: boolean
+  notion_workspace_id?: string
+  selected_database_id?: string
+}
+
+export interface NotionDatabase {
+  id: string
+  title: string
+  url?: string
+}
 
 class ApiClient {
   private client: AxiosInstance
@@ -63,4 +77,21 @@ export const tasksApi = {
 
 export const userApi = {
   getMe: () => api.get<User>('/users/me'),
+}
+
+export const authApi = {
+  getNotionStatus: () => api.get<NotionAuthStatus>('/notion/status'),
+  getNotionLoginUrl: (telegramId: number) =>
+    `${API_BASE_URL}/notion/login?telegram_id=${telegramId}`,
+}
+
+export const databaseApi = {
+  search: (query: string) =>
+    api.get<NotionDatabase[]>('/notion/databases/search', {
+      params: { query },
+    }),
+  select: (databaseId: string) =>
+    api.post<{ status: string }>('/notion/databases/select', {
+      database_id: databaseId,
+    }),
 }

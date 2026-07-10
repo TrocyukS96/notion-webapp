@@ -13,6 +13,7 @@ interface TelegramWebApp {
   ready: () => void
   close: () => void
   expand: () => void
+  openLink: (url: string) => void
   initData: string
   initDataUnsafe: {
     user?: TelegramUser
@@ -69,10 +70,16 @@ export function useTelegram(): UseTelegramReturn {
       }
 
       setTheme(tgInstance.colorScheme || 'light')
+      document.documentElement.dataset.theme = tgInstance.colorScheme || 'light'
 
       tgInstance.onEvent('themeChanged', () => {
-        setTheme(tgInstance.colorScheme || 'light')
+        const nextTheme = tgInstance.colorScheme || 'light'
+        setTheme(nextTheme)
+        document.documentElement.dataset.theme = nextTheme
       })
+    } else {
+      const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches
+      document.documentElement.dataset.theme = prefersDark ? 'dark' : 'light'
     }
   }, [])
 

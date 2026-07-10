@@ -36,17 +36,17 @@ export const AddColumnModal: React.FC<AddColumnModalProps> = ({
       onClick={onClose}
     >
       <div
-        className="bg-white rounded-xl p-5 w-full max-w-md shadow-lg"
+        className="tg-panel rounded-xl p-5 w-full max-w-md shadow-lg"
         onClick={(e) => e.stopPropagation()}
       >
-        <h3 className="text-lg font-semibold text-gray-800 mb-4">Новая колонка</h3>
+        <h3 className="text-lg font-semibold mb-4">Новая колонка</h3>
         <form onSubmit={handleSubmit} className="space-y-3">
           <input
             type="text"
             placeholder="Название колонки (статус)"
             value={title}
             onChange={(e) => setTitle(e.target.value)}
-            className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm"
+            className="tg-field"
             autoFocus
           />
           <div className="flex gap-2 justify-end pt-2">
