@@ -94,29 +94,18 @@ export const AuthPage: React.FC<AuthPageProps> = ({ onAuthorized }) => {
         </p>
       </div>
 
-      <div className="flex flex-col items-center gap-3">
-        <button
-          type="button"
-          onClick={handleConnect}
-          disabled={connecting || checking}
-          className="rounded-xl px-6 py-3 text-sm font-medium transition-opacity disabled:opacity-60"
-          style={{
-            backgroundColor: 'var(--tg-theme-button-color, #3390ec)',
-            color: 'var(--tg-theme-button-text-color, #ffffff)',
-          }}
-        >
-          {connecting ? 'Открываем…' : 'Подключить Notion'}
-        </button>
-
-        <button
-          type="button"
-          onClick={checkAuthStatus}
-          disabled={checking || connecting}
-          className="text-sm text-[var(--tg-theme-link-color,#3390ec)] transition-opacity disabled:opacity-60"
-        >
-          {checking ? 'Проверка…' : 'Я уже авторизовался'}
-        </button>
-      </div>
+      <button
+        type="button"
+        onClick={handleConnect}
+        disabled={connecting || checking}
+        className="rounded-xl px-6 py-3 text-sm font-medium transition-opacity disabled:opacity-60"
+        style={{
+          backgroundColor: 'var(--tg-theme-button-color, #3390ec)',
+          color: 'var(--tg-theme-button-text-color, #ffffff)',
+        }}
+      >
+        {connecting ? 'Открываем…' : 'Подключить Notion'}
+      </button>
 
       {error && (
         <p className="max-w-sm text-sm text-red-500" role="alert">
@@ -125,8 +114,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({ onAuthorized }) => {
       )}
 
       <p className="max-w-sm text-xs text-[var(--tg-theme-hint-color,#6b7280)]">
-        После авторизации в Notion вернитесь в Telegram и нажмите «Я уже
-        авторизовался».
+        После авторизации в Notion вернитесь в Telegram и обновите приложение.
       </p>
     </div>
   )

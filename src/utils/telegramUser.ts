@@ -1,4 +1,13 @@
-import { retrieveLaunchParams, retrieveRawInitData } from '@telegram-apps/sdk'
+import {
+  initDataUser,
+  retrieveLaunchParams,
+  retrieveRawInitData,
+} from '@telegram-apps/sdk'
+import {
+  isLaunchParamsQuery,
+  parseInitDataQuery,
+  parseLaunchParamsQuery,
+} from '@telegram-apps/transformers'
 
 export interface TelegramUserData {
   id: number
@@ -8,63 +17,130 @@ export interface TelegramUserData {
   language_code?: string
 }
 
-function normalizeUser(raw: {
-  id: number | string
-  first_name?: string
-  firstName?: string
-  last_name?: string
-  lastName?: string
-  username?: string
-  language_code?: string
-  languageCode?: string
-}): TelegramUserData | null {
-  const id = typeof raw.id === 'string' ? Number(raw.id) : raw.id
-  const firstName = raw.first_name ?? raw.firstName
+function extractUserId(value: unknown): number | null {
+  if (!value || typeof value !== 'object') return null
 
-  if (!Number.isFinite(id) || !firstName) {
-    return null
-  }
+  const record = value as Record<string, unknown>
+  const rawId = record.id
 
+  if (rawId == null) return null
+
+  const id = typeof rawId === 'string' ? Number(rawId) : rawId
+  return typeof id === 'number' && Number.isFinite(id) ? id : null
+}
+
+function toTelegramUser(
+  id: number,
+  raw?: Record<string, unknown>,
+): TelegramUserData {
   return {
     id,
-    first_name: firstName,
-    last_name: raw.last_name ?? raw.lastName,
-    username: raw.username,
-    language_code: raw.language_code ?? raw.languageCode,
+    first_name:
+      (raw?.first_name as string | undefined) ??
+      (raw?.firstName as string | undefined) ??
+      'User',
+    last_name:
+      (raw?.last_name as string | undefined) ??
+      (raw?.lastName as string | undefined),
+    username: raw?.username as string | undefined,
+    language_code:
+      (raw?.language_code as string | undefined) ??
+      (raw?.languageCode as string | undefined),
   }
 }
 
-function parseUserFromInitData(initData: string): TelegramUserData | null {
+function userFromInitDataObject(initData: unknown): TelegramUserData | null {
+  if (!initData || typeof initData !== 'object') return null
+
+  const data = initData as Record<string, unknown>
+  const user = data.user ?? data.receiver
+  const id = extractUserId(user)
+
+  if (id == null) return null
+
+  return toTelegramUser(id, user as Record<string, unknown>)
+}
+
+function parseUserFromInitDataString(initData: string): TelegramUserData | null {
   if (!initData) return null
 
   try {
+    const parsed = parseInitDataQuery(initData)
+    const user = userFromInitDataObject(parsed)
+    if (user) return user
+  } catch {
+    // Fall back to manual parsing below.
+  }
+
+  try {
     const params = new URLSearchParams(initData)
-    const rawUser = params.get('user')
+    const rawUser = params.get('user') ?? params.get('receiver')
     if (!rawUser) return null
 
-    return normalizeUser(JSON.parse(rawUser))
+    const parsedUser = JSON.parse(rawUser) as Record<string, unknown>
+    const id = extractUserId(parsedUser)
+    if (id == null) return null
+
+    return toTelegramUser(id, parsedUser)
   } catch {
     return null
   }
 }
 
-function getInitDataFromUrl(): string | null {
-  const hash = window.location.hash.startsWith('#')
-    ? window.location.hash.slice(1)
-    : window.location.hash
+function getLaunchParamSources(): string[] {
+  const sources = new Set<string>()
 
-  if (!hash) return null
+  if (window.location.hash.length > 1) {
+    sources.add(window.location.hash.slice(1))
+  }
 
-  const params = new URLSearchParams(hash)
-  return params.get('tgWebAppData') ?? params.get('initData')
+  if (window.location.search.length > 1) {
+    sources.add(window.location.search.slice(1))
+  }
+
+  return [...sources]
 }
 
-function getInitDataFromSdk(): string | null {
+function getUserFromLaunchParams(): TelegramUserData | null {
+  for (const source of getLaunchParamSources()) {
+    if (!isLaunchParamsQuery(source)) continue
+
+    try {
+      const launchParams = parseLaunchParamsQuery(source)
+      const user = userFromInitDataObject(launchParams.tgWebAppData)
+      if (user) return user
+    } catch {
+      // Try the next source.
+    }
+  }
+
+  return null
+}
+
+function getUserFromSdkLaunchParams(): TelegramUserData | null {
   try {
-    return retrieveRawInitData() ?? null
+    const launchParams = retrieveLaunchParams(true)
+    const user = userFromInitDataObject(launchParams.tgWebAppData)
+    if (user) return user
   } catch {
-    return null
+    // Ignore and continue with other sources.
   }
+
+  return null
+}
+
+function getUserFromSdkInitData(): TelegramUserData | null {
+  try {
+    const sdkUser = initDataUser()
+    const id = extractUserId(sdkUser)
+    if (id != null) {
+      return toTelegramUser(id, sdkUser as unknown as Record<string, unknown>)
+    }
+  } catch {
+    // Ignore and continue with other sources.
+  }
+
+  return null
 }
 
 export function isTelegramWebApp(): boolean {
@@ -74,37 +150,35 @@ export function isTelegramWebApp(): boolean {
 export function resolveTelegramUser(): TelegramUserData | null {
   const webApp = window.Telegram?.WebApp
 
-  if (webApp?.initDataUnsafe?.user) {
-    const user = normalizeUser(webApp.initDataUnsafe.user)
-    if (user) return user
+  const unsafeUser = webApp?.initDataUnsafe?.user
+  const unsafeUserId = extractUserId(unsafeUser)
+  if (unsafeUserId != null) {
+    return toTelegramUser(unsafeUserId, unsafeUser as unknown as Record<string, unknown>)
   }
 
   const initDataCandidates = [
     webApp?.initData,
-    getInitDataFromUrl(),
-    getInitDataFromSdk(),
+    (() => {
+      try {
+        return retrieveRawInitData()
+      } catch {
+        return null
+      }
+    })(),
   ]
 
   for (const initData of initDataCandidates) {
     if (!initData) continue
 
-    const user = parseUserFromInitData(initData)
+    const user = parseUserFromInitDataString(initData)
     if (user) return user
   }
 
-  try {
-    const launchParams = retrieveLaunchParams(true)
-    const launchUser = launchParams.tgWebAppData?.user
-
-    if (launchUser) {
-      const user = normalizeUser(launchUser)
-      if (user) return user
-    }
-  } catch {
-    // Not running inside Telegram Mini App.
-  }
-
-  return null
+  return (
+    getUserFromSdkInitData() ??
+    getUserFromSdkLaunchParams() ??
+    getUserFromLaunchParams()
+  )
 }
 
 export function resolveTelegramUserId(): number | null {

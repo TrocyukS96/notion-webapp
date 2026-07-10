@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react'
-import { init } from '@telegram-apps/sdk'
 import {
   isTelegramWebApp,
   resolveTelegramUser,
@@ -58,12 +57,6 @@ export function useTelegram(): UseTelegramReturn {
   const [theme, setTheme] = useState<'light' | 'dark'>('light')
 
   useEffect(() => {
-    try {
-      init()
-    } catch {
-      // SDK init is only available inside Telegram Mini App.
-    }
-
     const syncUser = () => {
       const resolvedUser = resolveTelegramUser()
       if (resolvedUser) {
@@ -94,9 +87,13 @@ export function useTelegram(): UseTelegramReturn {
 
     setIsReady(true)
 
-    const retryTimer = window.setTimeout(syncUser, 150)
+    const retryTimers = [150, 500, 1000].map((delay) =>
+      window.setTimeout(syncUser, delay),
+    )
 
-    return () => window.clearTimeout(retryTimer)
+    return () => {
+      retryTimers.forEach((timer) => window.clearTimeout(timer))
+    }
   }, [])
 
   const close = () => {

@@ -13,6 +13,10 @@ function App() {
   const { user, isReady, telegramUserId } = useTelegram()
   const [step, setStep] = useState<AppStep>('loading')
 
+  console.log('user', user)
+  console.log('isReady', isReady)
+  console.log('telegramUserId', telegramUserId)
+
   const handleDatabaseSelected = useCallback(() => {
     setStep('board')
   }, [])
