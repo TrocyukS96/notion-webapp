@@ -9,7 +9,7 @@ import { useTelegram } from './hooks/useTelegram'
 type AppStep = 'loading' | 'auth' | 'select-db' | 'board'
 
 function App() {
-  const { user, isReady } = useTelegram()
+  const { user, isReady, telegramUserId } = useTelegram()
   const [step, setStep] = useState<AppStep>('loading')
 
   const handleDatabaseSelected = useCallback(() => {
@@ -19,7 +19,7 @@ function App() {
   const resolveStep = useCallback(async () => {
     setStep('loading')
 
-    if (!user?.id) {
+    if (!telegramUserId) {
       setStep('auth')
       return
     }
@@ -37,7 +37,7 @@ function App() {
     } catch {
       setStep('auth')
     }
-  }, [user?.id])
+  }, [telegramUserId])
 
   useEffect(() => {
     if (isReady) {

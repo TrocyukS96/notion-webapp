@@ -45,6 +45,7 @@ declare global {
 interface UseTelegramReturn {
   tg: TelegramWebApp | null
   user: TelegramUser | null
+  telegramUserId: number | null
   isReady: boolean
   close: () => void
   expand: () => void
@@ -91,5 +92,7 @@ export function useTelegram(): UseTelegramReturn {
     tg?.expand()
   }
 
-  return { tg, user, isReady, close, expand, theme }
+  const telegramUserId = user?.id ?? tg?.initDataUnsafe?.user?.id ?? null
+
+  return { tg, user, telegramUserId, isReady, close, expand, theme }
 }
