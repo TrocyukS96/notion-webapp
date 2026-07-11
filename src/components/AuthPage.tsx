@@ -2,6 +2,7 @@ import { useState } from 'react'
 import type React from 'react'
 import { authApi } from '../api/client'
 import { useTelegram } from '../hooks/useTelegram'
+import { markOAuthPending } from '../utils/oauthPending'
 import { resolveTelegramUserId } from '../utils/telegramUser'
 
 interface AuthPageProps {
@@ -28,6 +29,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({ message }) => {
     setConnecting(true)
     setError(null)
 
+    markOAuthPending()
     const loginUrl = authApi.getNotionLoginUrl(currentTelegramUserId)
 
     if (tg) {

@@ -5,10 +5,11 @@ import {
   type NotionAuthStatus,
 } from '../api/client'
 import { isOAuthSuccessStartParam } from './oauthReturn'
+import { clearOAuthPending } from './oauthPending'
 
 export type AppStep = 'loading' | 'auth' | 'select-db' | 'board'
 
-const OAUTH_STATUS_RETRY_DELAYS_MS = [0, 400, 800, 1200, 1600, 2000]
+const OAUTH_STATUS_RETRY_DELAYS_MS = [0, 500, 1000, 1500, 2000, 3000, 4000]
 
 function isForceAuthFromUrl(): boolean {
   const params = new URLSearchParams(window.location.search)
@@ -52,7 +53,10 @@ export function authMessageFromStatus(
   }
 
   if (fromOAuth) {
-    return 'Авторизация Notion не завершена. Подключите Notion снова.'
+    return (
+      status.message ??
+      'Авторизация Notion не завершена. Подключите Notion снова.'
+    )
   }
 
   return status.message ?? 'Подключите Notion, чтобы открыть канбан-доску.'
@@ -74,6 +78,7 @@ export async function fetchNotionStatus(
 
     lastStatus = await authApi.getNotionStatus()
     if (lastStatus.authorized === true) {
+      clearOAuthPending()
       return lastStatus
     }
   }

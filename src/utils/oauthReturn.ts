@@ -89,6 +89,21 @@ export function isOAuthSuccessStartParam(): boolean {
   return readStartParam() === OAUTH_SUCCESS_START_PARAM
 }
 
+export async function waitForOAuthReturnState(
+  timeoutMs = 2500,
+): Promise<OAuthReturnState | null> {
+  const startedAt = Date.now()
+
+  while (Date.now() - startedAt <= timeoutMs) {
+    const state = readOAuthReturnState()
+    if (state) return state
+
+    await new Promise((resolve) => window.setTimeout(resolve, 100))
+  }
+
+  return readOAuthReturnState()
+}
+
 export function clearOAuthReturnParams(): void {
   const url = new URL(window.location.href)
 

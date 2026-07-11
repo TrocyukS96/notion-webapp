@@ -13,9 +13,11 @@ import {
   verifyNotionConnection,
   type AppStep,
 } from './utils/notionAccess'
+import { isOAuthPending } from './utils/oauthPending'
 import {
   clearOAuthReturnParams,
   readOAuthReturnState,
+  waitForOAuthReturnState,
   type OAuthReturnState,
 } from './utils/oauthReturn'
 import { resolveTelegramUserId } from './utils/telegramUser'
@@ -24,15 +26,20 @@ function App() {
   const { user, isReady, tg, telegramUserId, isInTelegram } = useTelegram()
   const [step, setStep] = useState<AppStep>('loading')
   const [authMessage, setAuthMessage] = useState<string | null>(null)
-  const [oauthReturn, setOauthReturn] = useState<OAuthReturnState | null>(() =>
-    readOAuthReturnState(),
-  )
+  const [oauthReturn, setOauthReturn] = useState<OAuthReturnState | null>(null)
+  const [bootstrapped, setBootstrapped] = useState(false)
   const resolveInFlight = useRef(false)
-  const oauthProcessed = useRef(false)
+  const pendingFromOAuth = useRef(false)
 
   const resolveStep = useCallback(
     async (options?: { fromOAuth?: boolean }) => {
-      if (resolveInFlight.current) return
+      if (resolveInFlight.current) {
+        if (options?.fromOAuth) {
+          pendingFromOAuth.current = true
+        }
+        return
+      }
+
       resolveInFlight.current = true
       setStep('loading')
 
@@ -50,7 +57,10 @@ function App() {
           return
         }
 
-        const status = await fetchNotionStatus(options)
+        const shouldRetryOAuth = Boolean(options?.fromOAuth || isOAuthPending())
+        const status = await fetchNotionStatus(
+          shouldRetryOAuth ? { fromOAuth: true } : undefined,
+        )
 
         if (isNotionAuthorized(status) && stepFromStatus(status) === 'board') {
           const connectionWorks = await verifyNotionConnection()
@@ -61,23 +71,32 @@ function App() {
           }
         }
 
-        setAuthMessage(authMessageFromStatus(status, options?.fromOAuth))
+        setAuthMessage(authMessageFromStatus(status, shouldRetryOAuth))
         setStep(stepFromStatus(status))
       } catch {
         setAuthMessage('Не удалось проверить подключение Notion. Попробуйте снова.')
         setStep('auth')
       } finally {
         resolveInFlight.current = false
+
+        if (pendingFromOAuth.current) {
+          pendingFromOAuth.current = false
+          void resolveStep({ fromOAuth: true })
+        }
       }
     },
     [telegramUserId],
   )
 
-  const handleOAuthContinue = useCallback(() => {
+  const completeOAuthReturn = useCallback(async () => {
     clearOAuthReturnParams()
     setOauthReturn(null)
-    resolveStep({ fromOAuth: true })
+    await resolveStep({ fromOAuth: true })
   }, [resolveStep])
+
+  const handleOAuthContinue = useCallback(() => {
+    void completeOAuthReturn()
+  }, [completeOAuthReturn])
 
   const handleUnauthorized = useCallback((message?: string) => {
     setAuthMessage(
@@ -87,51 +106,58 @@ function App() {
   }, [])
 
   useEffect(() => {
-    if (!isReady || !isInTelegram) return
+    if (!isReady || bootstrapped) return
 
-    const syncOAuthReturn = () => {
-      const state = readOAuthReturnState()
-      if (state) {
-        setOauthReturn(state)
+    let cancelled = false
+
+    const bootstrap = async () => {
+      const detectedOAuth = isInTelegram
+        ? await waitForOAuthReturnState()
+        : readOAuthReturnState()
+
+      if (cancelled) return
+
+      if (detectedOAuth) {
+        setOauthReturn(detectedOAuth)
+
+        if (detectedOAuth.status === 'success' && isInTelegram) {
+          await completeOAuthReturn()
+          if (!cancelled) setBootstrapped(true)
+          return
+        }
+
+        if (!isInTelegram) {
+          setBootstrapped(true)
+          return
+        }
       }
+
+      await resolveStep(isOAuthPending() ? { fromOAuth: true } : undefined)
+      if (!cancelled) setBootstrapped(true)
     }
 
-    syncOAuthReturn()
-    const timers = [50, 200, 500, 1000, 1500].map((delay) =>
-      window.setTimeout(syncOAuthReturn, delay),
-    )
+    void bootstrap()
 
     return () => {
-      timers.forEach((timer) => window.clearTimeout(timer))
+      cancelled = true
     }
-  }, [isReady, isInTelegram])
+  }, [isReady, isInTelegram, bootstrapped, completeOAuthReturn, resolveStep])
 
   useEffect(() => {
-    if (!isReady || !isInTelegram) return
-    if (!oauthReturn || oauthReturn.status !== 'success') return
-    if (oauthProcessed.current) return
+    if (!bootstrapped) return
 
-    oauthProcessed.current = true
-    handleOAuthContinue()
-  }, [isReady, isInTelegram, oauthReturn, handleOAuthContinue])
-
-  useEffect(() => {
-    if (oauthReturn?.status === 'success' && isInTelegram) return
-    if (oauthReturn && !isInTelegram) return
-
-    if (isReady) {
-      resolveStep()
-    }
-  }, [isReady, resolveStep, oauthReturn, isInTelegram])
-
-  useEffect(() => {
     const handleReturn = () => {
-      if (document.visibilityState === 'visible') {
-        const state = readOAuthReturnState()
-        if (state) {
-          setOauthReturn(state)
-        }
-        resolveStep()
+      if (document.visibilityState !== 'visible') return
+
+      const state = readOAuthReturnState()
+      if (state?.status === 'success') {
+        setOauthReturn(state)
+        void completeOAuthReturn()
+        return
+      }
+
+      if (isOAuthPending()) {
+        void resolveStep({ fromOAuth: true })
       }
     }
 
@@ -141,7 +167,7 @@ function App() {
     return () => {
       document.removeEventListener('visibilitychange', handleReturn)
     }
-  }, [tg, resolveStep])
+  }, [tg, bootstrapped, completeOAuthReturn, resolveStep])
 
   if (oauthReturn && !(oauthReturn.status === 'success' && isInTelegram)) {
     return (
@@ -156,7 +182,13 @@ function App() {
       case 'loading':
         return (
           <LoadingScreen
-            message={isReady ? 'Проверка статуса…' : 'Загрузка…'}
+            message={
+              isReady
+                ? isOAuthPending()
+                  ? 'Завершение авторизации Notion…'
+                  : 'Проверка статуса…'
+                : 'Загрузка…'
+            }
           />
         )
       case 'auth':

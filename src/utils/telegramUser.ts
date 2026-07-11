@@ -201,6 +201,13 @@ export function resolveTelegramUser(): TelegramUserData | null {
 }
 
 export function resolveTelegramUserId(): number | null {
+  if (isTelegramWebApp()) {
+    const telegramUser = resolveTelegramUser()
+    if (telegramUser?.id != null) {
+      return telegramUser.id
+    }
+  }
+
   const urlId = getTelegramIdFromUrl()
   if (urlId != null) return urlId
 
