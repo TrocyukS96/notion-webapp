@@ -14,6 +14,7 @@ interface TelegramWebApp {
   initData: string
   initDataUnsafe: {
     user?: TelegramUserData
+    start_param?: string
     query_id?: string
     auth_date?: string
     hash?: string

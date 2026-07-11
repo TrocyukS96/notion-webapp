@@ -2,6 +2,7 @@ import { useEffect } from 'react'
 import type React from 'react'
 import { useTelegram } from '../hooks/useTelegram'
 import {
+  getOAuthSuccessTelegramLink,
   TELEGRAM_APP_LINK,
   type OAuthReturnState,
 } from '../utils/oauthReturn'
@@ -35,8 +36,12 @@ export const OAuthReturnPage: React.FC<OAuthReturnPageProps> = ({
   }
 
   const handleOpenTelegram = () => {
-    if (TELEGRAM_APP_LINK) {
-      window.location.href = TELEGRAM_APP_LINK
+    const returnLink = isSuccess
+      ? getOAuthSuccessTelegramLink() || TELEGRAM_APP_LINK
+      : TELEGRAM_APP_LINK
+
+    if (returnLink) {
+      window.location.href = returnLink
       return
     }
 
@@ -67,7 +72,9 @@ export const OAuthReturnPage: React.FC<OAuthReturnPageProps> = ({
             color: 'var(--tg-theme-button-text-color, #ffffff)',
           }}
         >
-          {TELEGRAM_APP_LINK ? 'Открыть в Telegram' : 'Закрыть вкладку'}
+          {getOAuthSuccessTelegramLink() || TELEGRAM_APP_LINK
+            ? 'Открыть в Telegram'
+            : 'Закрыть вкладку'}
         </button>
       ) : (
         <button

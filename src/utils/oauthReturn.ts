@@ -5,21 +5,54 @@ export interface OAuthReturnState {
   error?: string
 }
 
-const OAUTH_QUERY_KEYS = ['notion_auth', 'error', 'telegram_id'] as const
+const OAUTH_QUERY_KEYS = ['notion_auth', 'error', 'telegram_id', 'force_auth'] as const
+const OAUTH_SUCCESS_START_PARAM = 'notion_auth_ok'
+const OAUTH_ERROR_START_PARAM = 'notion_auth_error'
 
-function readStartParam(): string | null {
-  const initDataUnsafe = window.Telegram?.WebApp?.initDataUnsafe as
-    | { start_param?: string }
-    | undefined
-  const fromSdk = initDataUnsafe?.start_param
-  if (fromSdk) return fromSdk
+const BASE_TELEGRAM_APP_LINK =
+  import.meta.env.VITE_TELEGRAM_APP_LINK?.trim() || ''
+
+export const TELEGRAM_APP_LINK = BASE_TELEGRAM_APP_LINK
+
+export function getOAuthSuccessTelegramLink(): string {
+  if (!BASE_TELEGRAM_APP_LINK) return ''
+
+  const url = new URL(BASE_TELEGRAM_APP_LINK)
+  url.searchParams.set('startapp', OAUTH_SUCCESS_START_PARAM)
+  return url.toString()
+}
+
+function readStartParamFromInitData(initData: string): string | null {
+  try {
+    const params = new URLSearchParams(initData)
+    return params.get('start_param')
+  } catch {
+    return null
+  }
+}
+
+export function readStartParam(): string | null {
+  const webApp = window.Telegram?.WebApp
+
+  const fromUnsafe = (
+    webApp?.initDataUnsafe as { start_param?: string } | undefined
+  )?.start_param
+  if (fromUnsafe) return fromUnsafe
+
+  if (webApp?.initData) {
+    const fromInitData = readStartParamFromInitData(webApp.initData)
+    if (fromInitData) return fromInitData
+  }
 
   const searchParams = new URLSearchParams(window.location.search)
   const fromQuery = searchParams.get('tgWebAppStartParam')
   if (fromQuery) return fromQuery
 
   const hashParams = new URLSearchParams(window.location.hash.slice(1))
-  return hashParams.get('tgWebAppStartParam')
+  const fromHash = hashParams.get('tgWebAppStartParam')
+  if (fromHash) return fromHash
+
+  return null
 }
 
 export function readOAuthReturnState(): OAuthReturnState | null {
@@ -38,11 +71,11 @@ export function readOAuthReturnState(): OAuthReturnState | null {
   }
 
   const startParam = readStartParam()
-  if (startParam === 'notion_auth_ok') {
+  if (startParam === OAUTH_SUCCESS_START_PARAM) {
     return { status: 'success' }
   }
 
-  if (startParam === 'notion_auth_error') {
+  if (startParam === OAUTH_ERROR_START_PARAM) {
     return {
       status: 'error',
       error: 'Не удалось подключить Notion',
@@ -50,6 +83,10 @@ export function readOAuthReturnState(): OAuthReturnState | null {
   }
 
   return null
+}
+
+export function isOAuthSuccessStartParam(): boolean {
+  return readStartParam() === OAUTH_SUCCESS_START_PARAM
 }
 
 export function clearOAuthReturnParams(): void {
@@ -69,6 +106,3 @@ export function clearOAuthReturnParams(): void {
 
   window.history.replaceState({}, '', url.toString())
 }
-
-export const TELEGRAM_APP_LINK =
-  import.meta.env.VITE_TELEGRAM_APP_LINK?.trim() || ''

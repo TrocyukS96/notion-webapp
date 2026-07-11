@@ -1,7 +1,14 @@
-import type { NotionAuthStatus } from '../api/client'
-import { databaseApi, isNotionAuthError } from '../api/client'
+import {
+  authApi,
+  databaseApi,
+  isNotionAuthError,
+  type NotionAuthStatus,
+} from '../api/client'
+import { isOAuthSuccessStartParam } from './oauthReturn'
 
 export type AppStep = 'loading' | 'auth' | 'select-db' | 'board'
+
+const OAUTH_STATUS_RETRY_DELAYS_MS = [0, 400, 800, 1200, 1600, 2000]
 
 function isForceAuthFromUrl(): boolean {
   const params = new URLSearchParams(window.location.search)
@@ -9,6 +16,10 @@ function isForceAuthFromUrl(): boolean {
 }
 
 export function isNotionAuthorized(status: NotionAuthStatus): boolean {
+  if (isOAuthSuccessStartParam()) {
+    return status.authorized === true
+  }
+
   if (isForceAuthFromUrl()) {
     return false
   }
@@ -45,6 +56,29 @@ export function authMessageFromStatus(
   }
 
   return status.message ?? 'Подключите Notion, чтобы открыть канбан-доску.'
+}
+
+export async function fetchNotionStatus(
+  options?: { fromOAuth?: boolean },
+): Promise<NotionAuthStatus> {
+  const delays = options?.fromOAuth
+    ? OAUTH_STATUS_RETRY_DELAYS_MS
+    : [0]
+
+  let lastStatus: NotionAuthStatus = { authorized: false }
+
+  for (const delay of delays) {
+    if (delay > 0) {
+      await new Promise((resolve) => window.setTimeout(resolve, delay))
+    }
+
+    lastStatus = await authApi.getNotionStatus()
+    if (lastStatus.authorized === true) {
+      return lastStatus
+    }
+  }
+
+  return lastStatus
 }
 
 export async function verifyNotionConnection(): Promise<boolean> {

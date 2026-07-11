@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { authApi } from './api/client'
 import { AuthPage } from './components/AuthPage'
 import { KanbanBoard } from './components/KanbanBoard'
 import { LoadingScreen } from './components/LoadingScreen'
@@ -8,6 +7,7 @@ import { SelectDbPage } from './components/SelectDbPage'
 import { useTelegram } from './hooks/useTelegram'
 import {
   authMessageFromStatus,
+  fetchNotionStatus,
   isNotionAuthorized,
   stepFromStatus,
   verifyNotionConnection,
@@ -28,7 +28,7 @@ function App() {
     readOAuthReturnState(),
   )
   const resolveInFlight = useRef(false)
-  const oauthHandled = useRef(false)
+  const oauthProcessed = useRef(false)
 
   const resolveStep = useCallback(
     async (options?: { fromOAuth?: boolean }) => {
@@ -50,7 +50,7 @@ function App() {
           return
         }
 
-        const status = await authApi.getNotionStatus()
+        const status = await fetchNotionStatus(options)
 
         if (isNotionAuthorized(status) && stepFromStatus(status) === 'board') {
           const connectionWorks = await verifyNotionConnection()
@@ -87,13 +87,33 @@ function App() {
   }, [])
 
   useEffect(() => {
-    if (!oauthReturn || oauthHandled.current) return
+    if (!isReady || !isInTelegram) return
 
-    if (oauthReturn.status === 'success' && isInTelegram) {
-      oauthHandled.current = true
-      handleOAuthContinue()
+    const syncOAuthReturn = () => {
+      const state = readOAuthReturnState()
+      if (state) {
+        setOauthReturn(state)
+      }
     }
-  }, [oauthReturn, isInTelegram, handleOAuthContinue])
+
+    syncOAuthReturn()
+    const timers = [50, 200, 500, 1000, 1500].map((delay) =>
+      window.setTimeout(syncOAuthReturn, delay),
+    )
+
+    return () => {
+      timers.forEach((timer) => window.clearTimeout(timer))
+    }
+  }, [isReady, isInTelegram])
+
+  useEffect(() => {
+    if (!isReady || !isInTelegram) return
+    if (!oauthReturn || oauthReturn.status !== 'success') return
+    if (oauthProcessed.current) return
+
+    oauthProcessed.current = true
+    handleOAuthContinue()
+  }, [isReady, isInTelegram, oauthReturn, handleOAuthContinue])
 
   useEffect(() => {
     if (oauthReturn?.status === 'success' && isInTelegram) return
@@ -107,6 +127,10 @@ function App() {
   useEffect(() => {
     const handleReturn = () => {
       if (document.visibilityState === 'visible') {
+        const state = readOAuthReturnState()
+        if (state) {
+          setOauthReturn(state)
+        }
         resolveStep()
       }
     }
