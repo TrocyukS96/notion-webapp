@@ -1,16 +1,19 @@
 import { useCallback, useEffect, useState } from 'react'
 import type React from 'react'
-import { authApi, databaseApi, type NotionDatabase } from '../api/client'
+import { authApi, databaseApi, isNotionAuthError, type NotionDatabase } from '../api/client'
+import { canAccessKanban, isNotionAuthorized } from '../utils/notionAccess'
 import { useTelegram } from '../hooks/useTelegram'
 
 const SEARCH_DEBOUNCE_MS = 400
 
 interface SelectDbPageProps {
   onDatabaseSelected?: () => void
+  onUnauthorized?: (message?: string) => void
 }
 
 export const SelectDbPage: React.FC<SelectDbPageProps> = ({
   onDatabaseSelected,
+  onUnauthorized,
 }) => {
   const { user, isReady } = useTelegram()
   const [checking, setChecking] = useState(true)
@@ -29,7 +32,14 @@ export const SelectDbPage: React.FC<SelectDbPageProps> = ({
     try {
       const status = await authApi.getNotionStatus()
 
-      if (status.authorized === true && status.selected_database_id) {
+      if (!isNotionAuthorized(status)) {
+        onUnauthorized?.(
+          status.message ?? 'Подключите Notion, чтобы выбрать базу данных.',
+        )
+        return
+      }
+
+      if (canAccessKanban(status)) {
         onDatabaseSelected?.()
       }
     } catch {
@@ -37,7 +47,7 @@ export const SelectDbPage: React.FC<SelectDbPageProps> = ({
     } finally {
       setChecking(false)
     }
-  }, [user?.id, onDatabaseSelected])
+  }, [user?.id, onDatabaseSelected, onUnauthorized])
 
   useEffect(() => {
     if (isReady) {
@@ -54,7 +64,12 @@ export const SelectDbPage: React.FC<SelectDbPageProps> = ({
         setError(null)
         const results = await databaseApi.search(query.trim())
         setDatabases(results)
-      } catch {
+      } catch (error) {
+        if (isNotionAuthError(error)) {
+          onUnauthorized?.('Сессия Notion истекла. Подключите Notion снова.')
+          return
+        }
+
         setError('Не удалось найти базы данных')
         setDatabases([])
       } finally {
@@ -63,7 +78,7 @@ export const SelectDbPage: React.FC<SelectDbPageProps> = ({
     }, SEARCH_DEBOUNCE_MS)
 
     return () => window.clearTimeout(timeoutId)
-  }, [query, user?.id, checking])
+  }, [query, user?.id, checking, onUnauthorized])
 
   const handleSelect = async (database: NotionDatabase) => {
     try {
@@ -71,7 +86,12 @@ export const SelectDbPage: React.FC<SelectDbPageProps> = ({
       setError(null)
       await databaseApi.select(database.id)
       onDatabaseSelected?.()
-    } catch {
+    } catch (error) {
+      if (isNotionAuthError(error)) {
+        onUnauthorized?.('Сессия Notion истекла. Подключите Notion снова.')
+        return
+      }
+
       setError('Не удалось выбрать базу данных')
     } finally {
       setSelectingId(null)

@@ -4,7 +4,11 @@ import { authApi } from '../api/client'
 import { useTelegram } from '../hooks/useTelegram'
 import { resolveTelegramUserId } from '../utils/telegramUser'
 
-export const AuthPage: React.FC = () => {
+interface AuthPageProps {
+  message?: string | null
+}
+
+export const AuthPage: React.FC<AuthPageProps> = ({ message }) => {
   const { isReady, tg, isInTelegram } = useTelegram()
   const [connecting, setConnecting] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -54,6 +58,11 @@ export const AuthPage: React.FC = () => {
         <p className="max-w-sm text-sm text-[var(--tg-theme-hint-color,#6b7280)]">
           Разрешите доступ к workspace, чтобы загружать задачи на канбан-доску.
         </p>
+        {message && (
+          <p className="max-w-sm text-sm text-red-500" role="alert">
+            {message}
+          </p>
+        )}
       </div>
 
       <button
@@ -66,7 +75,7 @@ export const AuthPage: React.FC = () => {
           color: 'var(--tg-theme-button-text-color, #ffffff)',
         }}
       >
-        {connecting ? 'Открываем…' : 'Подключить Notion'}
+        {connecting ? 'Открываем…' : message ? 'Подключить Notion снова' : 'Подключить Notion'}
       </button>
 
       {error && (

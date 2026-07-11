@@ -201,9 +201,9 @@ export function resolveTelegramUser(): TelegramUserData | null {
 }
 
 export function resolveTelegramUserId(): number | null {
-  const user = resolveTelegramUser()
-  if (user) return user.id
-
   const urlId = getTelegramIdFromUrl()
-  return urlId
+  if (urlId != null) return urlId
+
+  const user = resolveTelegramUser()
+  return user?.id ?? null
 }

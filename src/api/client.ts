@@ -1,4 +1,8 @@
-import axios, { type AxiosInstance, type AxiosRequestConfig } from 'axios'
+import axios, {
+  isAxiosError,
+  type AxiosInstance,
+  type AxiosRequestConfig,
+} from 'axios'
 import type { CreateTaskData, Task, User } from '../components/types'
 import { resolveTelegramUserId } from '../utils/telegramUser'
 
@@ -94,4 +98,13 @@ export const databaseApi = {
     api.post<{ status: string }>('/notion/databases/select', {
       database_id: databaseId,
     }),
+}
+
+export function isNotionAuthError(error: unknown): boolean {
+  if (!isAxiosError(error)) {
+    return false
+  }
+
+  const status = error.response?.status
+  return status === 401 || status === 403
 }

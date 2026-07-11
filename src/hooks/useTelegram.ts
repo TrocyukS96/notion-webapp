@@ -104,7 +104,7 @@ export function useTelegram(): UseTelegramReturn {
     tg?.expand()
   }
 
-  const telegramUserId = user?.id ?? resolveTelegramUserId()
+  const telegramUserId = resolveTelegramUserId()
   const isInTelegram = isTelegramWebApp()
 
   return { tg, user, telegramUserId, isInTelegram, isReady, close, expand, theme }

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { authApi, type NotionAuthStatus } from './api/client'
+import { authApi } from './api/client'
 import { AuthPage } from './components/AuthPage'
 import { KanbanBoard } from './components/KanbanBoard'
 import { LoadingScreen } from './components/LoadingScreen'
@@ -7,71 +7,84 @@ import { OAuthReturnPage } from './components/OAuthReturnPage'
 import { SelectDbPage } from './components/SelectDbPage'
 import { useTelegram } from './hooks/useTelegram'
 import {
+  authMessageFromStatus,
+  isNotionAuthorized,
+  stepFromStatus,
+  verifyNotionConnection,
+  type AppStep,
+} from './utils/notionAccess'
+import {
   clearOAuthReturnParams,
   readOAuthReturnState,
   type OAuthReturnState,
 } from './utils/oauthReturn'
 import { resolveTelegramUserId } from './utils/telegramUser'
 
-type AppStep = 'loading' | 'auth' | 'select-db' | 'board'
-
-function stepFromStatus(status: NotionAuthStatus): AppStep {
-  if (status.authorized !== true) {
-    return 'auth'
-  }
-
-  if (!status.selected_database_id) {
-    return 'select-db'
-  }
-
-  return 'board'
-}
-
 function App() {
   const { user, isReady, tg, telegramUserId, isInTelegram } = useTelegram()
   const [step, setStep] = useState<AppStep>('loading')
+  const [authMessage, setAuthMessage] = useState<string | null>(null)
   const [oauthReturn, setOauthReturn] = useState<OAuthReturnState | null>(() =>
     readOAuthReturnState(),
   )
   const resolveInFlight = useRef(false)
   const oauthHandled = useRef(false)
 
-  const handleDatabaseSelected = useCallback(() => {
-    setStep('board')
-  }, [])
+  const resolveStep = useCallback(
+    async (options?: { fromOAuth?: boolean }) => {
+      if (resolveInFlight.current) return
+      resolveInFlight.current = true
+      setStep('loading')
 
-  const resolveStep = useCallback(async () => {
-    if (resolveInFlight.current) return
-    resolveInFlight.current = true
-    setStep('loading')
+      try {
+        let currentTelegramUserId = telegramUserId ?? resolveTelegramUserId()
 
-    try {
-      let currentTelegramUserId = telegramUserId ?? resolveTelegramUserId()
+        if (!currentTelegramUserId) {
+          await new Promise((resolve) => window.setTimeout(resolve, 400))
+          currentTelegramUserId = telegramUserId ?? resolveTelegramUserId()
+        }
 
-      if (!currentTelegramUserId) {
-        await new Promise((resolve) => window.setTimeout(resolve, 400))
-        currentTelegramUserId = telegramUserId ?? resolveTelegramUserId()
-      }
+        if (!currentTelegramUserId) {
+          setAuthMessage('Откройте приложение через Telegram, чтобы подключить Notion.')
+          setStep('auth')
+          return
+        }
 
-      if (!currentTelegramUserId) {
+        const status = await authApi.getNotionStatus()
+
+        if (isNotionAuthorized(status) && stepFromStatus(status) === 'board') {
+          const connectionWorks = await verifyNotionConnection()
+          if (!connectionWorks) {
+            setAuthMessage('Не удалось подключиться к Notion. Подключите Notion снова.')
+            setStep('auth')
+            return
+          }
+        }
+
+        setAuthMessage(authMessageFromStatus(status, options?.fromOAuth))
+        setStep(stepFromStatus(status))
+      } catch {
+        setAuthMessage('Не удалось проверить подключение Notion. Попробуйте снова.')
         setStep('auth')
-        return
+      } finally {
+        resolveInFlight.current = false
       }
-
-      const status = await authApi.getNotionStatus()
-      setStep(stepFromStatus(status))
-    } catch {
-      setStep('auth')
-    } finally {
-      resolveInFlight.current = false
-    }
-  }, [telegramUserId])
+    },
+    [telegramUserId],
+  )
 
   const handleOAuthContinue = useCallback(() => {
     clearOAuthReturnParams()
     setOauthReturn(null)
-    resolveStep()
+    resolveStep({ fromOAuth: true })
   }, [resolveStep])
+
+  const handleUnauthorized = useCallback((message?: string) => {
+    setAuthMessage(
+      message ?? 'Подключите Notion, чтобы открыть канбан-доску.',
+    )
+    setStep('auth')
+  }, [])
 
   useEffect(() => {
     if (!oauthReturn || oauthHandled.current) return
@@ -123,11 +136,16 @@ function App() {
           />
         )
       case 'auth':
-        return <AuthPage />
+        return <AuthPage message={authMessage} />
       case 'select-db':
-        return <SelectDbPage onDatabaseSelected={handleDatabaseSelected} />
+        return (
+          <SelectDbPage
+            onDatabaseSelected={() => resolveStep()}
+            onUnauthorized={handleUnauthorized}
+          />
+        )
       case 'board':
-        return <KanbanBoard />
+        return <KanbanBoard onUnauthorized={handleUnauthorized} />
     }
   }
 
