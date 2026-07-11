@@ -12,8 +12,7 @@ import {
   SortableContext,
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable'
-import { api, authApi, isNotionAuthError } from '../api/client'
-import { canAccessKanban } from '../utils/notionAccess'
+import { api, isNotionAuthError } from '../api/client'
 import { TaskCard } from './TaskCard'
 import { AddTaskModal } from './AddTaskModal'
 import { AddColumnModal } from './AddColumnModal'
@@ -32,7 +31,6 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({ onUnauthorized }) => {
   const [columns, setColumns] = useState<string[]>([])
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState<string | null>(null)
-  const [authChecked, setAuthChecked] = useState(false)
   const [showAddTask, setShowAddTask] = useState(false)
   const [showAddColumn, setShowAddColumn] = useState(false)
 
@@ -78,41 +76,8 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({ onUnauthorized }) => {
   }, [onUnauthorized])
 
   useEffect(() => {
-    let cancelled = false
-
-    const verifyAccess = async () => {
-      try {
-        const status = await authApi.getNotionStatus()
-
-        if (!canAccessKanban(status)) {
-          onUnauthorized?.(
-            status.message ?? 'Подключите Notion, чтобы открыть канбан-доску.',
-          )
-          return
-        }
-
-        if (!cancelled) {
-          setAuthChecked(true)
-        }
-      } catch {
-        if (!cancelled) {
-          onUnauthorized?.('Не удалось проверить подключение Notion. Попробуйте снова.')
-        }
-      }
-    }
-
-    verifyAccess()
-
-    return () => {
-      cancelled = true
-    }
-  }, [onUnauthorized])
-
-  useEffect(() => {
-    if (!authChecked) return
-
-    loadTasks()
-  }, [authChecked, loadTasks])
+    void loadTasks()
+  }, [loadTasks])
 
   const handleDragEnd = async (event: DragEndEvent) => {
     const { active, over } = event
@@ -155,7 +120,7 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({ onUnauthorized }) => {
     }
   }
 
-  if (!authChecked || loading) {
+  if (loading) {
     return (
       <div className="flex items-center justify-center h-screen">
         <div className="text-lg text-gray-600">Загрузка задач...</div>
@@ -171,14 +136,14 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({ onUnauthorized }) => {
         </p>
         <button
           type="button"
-          onClick={() => onUnauthorized?.('Подключите Notion снова.')}
+          onClick={() => void loadTasks()}
           className="rounded-xl px-6 py-3 text-sm font-medium"
           style={{
             backgroundColor: 'var(--tg-theme-button-color, #3390ec)',
             color: 'var(--tg-theme-button-text-color, #ffffff)',
           }}
         >
-          Подключить Notion снова
+          Повторить
         </button>
       </div>
     )

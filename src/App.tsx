@@ -8,16 +8,13 @@ import { useTelegram } from './hooks/useTelegram'
 import {
   authMessageFromStatus,
   fetchNotionStatus,
-  isNotionAuthorized,
   stepFromStatus,
-  verifyNotionConnection,
   type AppStep,
 } from './utils/notionAccess'
 import { isOAuthPending } from './utils/oauthPending'
 import {
   clearOAuthReturnParams,
   readOAuthReturnState,
-  waitForOAuthReturnState,
   type OAuthReturnState,
 } from './utils/oauthReturn'
 import { resolveTelegramUserId } from './utils/telegramUser'
@@ -57,19 +54,10 @@ function App() {
           return
         }
 
-        const shouldRetryOAuth = Boolean(options?.fromOAuth || isOAuthPending())
+        const shouldRetryOAuth = Boolean(options?.fromOAuth)
         const status = await fetchNotionStatus(
           shouldRetryOAuth ? { fromOAuth: true } : undefined,
         )
-
-        if (isNotionAuthorized(status) && stepFromStatus(status) === 'board') {
-          const connectionWorks = await verifyNotionConnection()
-          if (!connectionWorks) {
-            setAuthMessage('Не удалось подключиться к Notion. Подключите Notion снова.')
-            setStep('auth')
-            return
-          }
-        }
 
         setAuthMessage(authMessageFromStatus(status, shouldRetryOAuth))
         setStep(stepFromStatus(status))
@@ -111,9 +99,7 @@ function App() {
     let cancelled = false
 
     const bootstrap = async () => {
-      const detectedOAuth = isInTelegram
-        ? await waitForOAuthReturnState()
-        : readOAuthReturnState()
+      const detectedOAuth = readOAuthReturnState()
 
       if (cancelled) return
 
@@ -132,7 +118,12 @@ function App() {
         }
       }
 
-      await resolveStep(isOAuthPending() ? { fromOAuth: true } : undefined)
+      if (isOAuthPending()) {
+        await resolveStep({ fromOAuth: true })
+      } else {
+        await resolveStep()
+      }
+
       if (!cancelled) setBootstrapped(true)
     }
 
