@@ -83,8 +83,15 @@ export const userApi = {
   getMe: () => api.get<User>('/users/me'),
 }
 
+export interface NotionLogoutResponse {
+  status: string
+  authorized: boolean
+  message?: string
+}
+
 export const authApi = {
   getNotionStatus: () => api.get<NotionAuthStatus>('/notion/status'),
+  logoutNotion: () => api.delete<NotionLogoutResponse>('/notion/session'),
   getNotionLoginUrl: (telegramId: number) =>
     `${API_BASE_URL}/notion/login?telegram_id=${telegramId}`,
 }

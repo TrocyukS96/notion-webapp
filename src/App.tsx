@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { AuthPage } from './components/AuthPage'
+import { DeleteSessionButton } from './components/DeleteSessionButton'
 import { KanbanBoard } from './components/KanbanBoard'
 import { LoadingScreen } from './components/LoadingScreen'
 import { OAuthReturnPage } from './components/OAuthReturnPage'
@@ -11,7 +12,7 @@ import {
   stepFromStatus,
   type AppStep,
 } from './utils/notionAccess'
-import { isOAuthPending } from './utils/oauthPending'
+import { isOAuthPending, clearOAuthPending } from './utils/oauthPending'
 import {
   clearOAuthReturnParams,
   readOAuthReturnState,
@@ -93,6 +94,14 @@ function App() {
     setStep('auth')
   }, [])
 
+  const handleSessionDeleted = useCallback(() => {
+    clearOAuthPending()
+    clearOAuthReturnParams()
+    setOauthReturn(null)
+    setAuthMessage('Сессия Notion удалена.')
+    setStep('auth')
+  }, [])
+
   useEffect(() => {
     if (!isReady || bootstrapped) return
 
@@ -162,8 +171,9 @@ function App() {
 
   if (oauthReturn && !(oauthReturn.status === 'success' && isInTelegram)) {
     return (
-      <div className="app">
+      <div className="app flex min-h-[100svh] flex-col pb-20">
         <OAuthReturnPage state={oauthReturn} onContinue={handleOAuthContinue} />
+        <DeleteSessionButton onDeleted={handleSessionDeleted} />
       </div>
     )
   }
@@ -197,13 +207,14 @@ function App() {
   }
 
   return (
-    <div className="app">
+    <div className="app flex min-h-[100svh] flex-col pb-20">
       {user && (
         <div className="app__user">
           {user.first_name} {user.last_name ?? ''}
         </div>
       )}
-      {renderContent()}
+      <div className="flex-1">{renderContent()}</div>
+      <DeleteSessionButton onDeleted={handleSessionDeleted} />
     </div>
   )
 }
