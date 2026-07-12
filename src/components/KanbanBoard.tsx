@@ -11,6 +11,7 @@ import {
 } from '@dnd-kit/core'
 import {
   SortableContext,
+  arrayMove,
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable'
 import {
@@ -173,7 +174,7 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
 
   const handleDragEnd = async (event: DragEndEvent) => {
     const { active, over } = event
-    if (!over) return
+    if (!over || active.id === over.id) return
 
     const taskId = active.id as string
     let newStatus: string | undefined
@@ -203,7 +204,31 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
       }
     }
 
-    if (!taskToUpdate || oldStatus === newStatus) return
+    if (!taskToUpdate) return
+
+    if (oldStatus === newStatus) {
+      setTasks((prev) => {
+        const columnTasks = [...prev[oldStatus]]
+        const oldIndex = columnTasks.findIndex((task) => task.id === taskId)
+        if (oldIndex === -1) return prev
+
+        let newIndex: number
+        if (over.id === oldStatus) {
+          newIndex = columnTasks.length - 1
+        } else {
+          newIndex = columnTasks.findIndex((task) => task.id === over.id)
+          if (newIndex === -1) return prev
+        }
+
+        if (oldIndex === newIndex) return prev
+
+        return {
+          ...prev,
+          [oldStatus]: arrayMove(columnTasks, oldIndex, newIndex),
+        }
+      })
+      return
+    }
 
     const updatedTask = { ...taskToUpdate, status: newStatus }
 
