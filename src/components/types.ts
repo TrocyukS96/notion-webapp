@@ -4,6 +4,7 @@ export interface Task {
   description?: string
   status: string
   due_date?: string
+  order?: number
   url?: string
 }
 

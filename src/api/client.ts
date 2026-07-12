@@ -77,6 +77,11 @@ export const tasksApi = {
   updateTask: (taskId: string, data: Partial<CreateTaskData>) =>
     api.patch<Task>(`/tasks/${taskId}`, data),
   deleteTask: (taskId: string) => api.delete<void>(`/tasks/${taskId}`),
+  reorderTasks: (status: string, taskIds: string[]) =>
+    api.patch<{ status: string }>('/tasks/reorder', {
+      status,
+      task_ids: taskIds,
+    }),
 }
 
 export const columnsApi = {

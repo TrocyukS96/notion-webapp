@@ -207,43 +207,70 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
     if (!taskToUpdate) return
 
     if (oldStatus === newStatus) {
-      setTasks((prev) => {
-        const columnTasks = [...prev[oldStatus]]
-        const oldIndex = columnTasks.findIndex((task) => task.id === taskId)
-        if (oldIndex === -1) return prev
+      const columnTasks = [...tasks[oldStatus]]
+      const oldIndex = columnTasks.findIndex((task) => task.id === taskId)
+      if (oldIndex === -1) return
 
-        let newIndex: number
-        if (over.id === oldStatus) {
-          newIndex = columnTasks.length - 1
-        } else {
-          newIndex = columnTasks.findIndex((task) => task.id === over.id)
-          if (newIndex === -1) return prev
-        }
+      let newIndex: number
+      if (over.id === oldStatus) {
+        newIndex = columnTasks.length - 1
+      } else {
+        newIndex = columnTasks.findIndex((task) => task.id === over.id)
+        if (newIndex === -1) return
+      }
 
-        if (oldIndex === newIndex) return prev
+      if (oldIndex === newIndex) return
 
-        return {
-          ...prev,
-          [oldStatus]: arrayMove(columnTasks, oldIndex, newIndex),
-        }
-      })
+      const reordered = arrayMove(columnTasks, oldIndex, newIndex)
+
+      setTasks((prev) => ({
+        ...prev,
+        [oldStatus]: reordered,
+      }))
+
+      try {
+        await tasksApi.reorderTasks(
+          oldStatus,
+          reordered.map((task) => task.id),
+        )
+      } catch (error) {
+        console.error('Error reordering tasks:', error)
+        await loadTasks()
+      }
       return
     }
 
     const updatedTask = { ...taskToUpdate, status: newStatus }
+    const sourceColumn = tasks[oldStatus].filter((task) => task.id !== taskId)
+    const targetColumn = [...(tasks[newStatus] ?? [])]
 
-    setTasks((prev) => {
-      const newTasks = { ...prev }
-      newTasks[oldStatus] = newTasks[oldStatus].filter((t) => t.id !== taskId)
-      if (!newTasks[newStatus]) {
-        newTasks[newStatus] = []
+    let insertIndex = targetColumn.length
+    if (over.id !== newStatus) {
+      const overIndex = targetColumn.findIndex((task) => task.id === over.id)
+      if (overIndex !== -1) {
+        insertIndex = overIndex
       }
-      newTasks[newStatus].push(updatedTask)
-      return newTasks
-    })
+    }
+    targetColumn.splice(insertIndex, 0, updatedTask)
+
+    setTasks((prev) => ({
+      ...prev,
+      [oldStatus]: sourceColumn,
+      [newStatus]: targetColumn,
+    }))
 
     try {
       await tasksApi.updateTask(taskId, { status: newStatus })
+      await Promise.all([
+        tasksApi.reorderTasks(
+          newStatus,
+          targetColumn.map((task) => task.id),
+        ),
+        tasksApi.reorderTasks(
+          oldStatus,
+          sourceColumn.map((task) => task.id),
+        ),
+      ])
     } catch (error) {
       console.error('Error updating task status:', error)
       await loadTasks()
