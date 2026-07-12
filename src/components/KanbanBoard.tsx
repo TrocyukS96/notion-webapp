@@ -12,7 +12,7 @@ import {
   SortableContext,
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable'
-import { api, isNotionAuthError } from '../api/client'
+import { api, databaseApi, isNotionAuthError } from '../api/client'
 import { TaskCard } from './TaskCard'
 import { AddTaskModal } from './AddTaskModal'
 import { AddColumnModal } from './AddColumnModal'
@@ -24,11 +24,16 @@ interface TasksByStatus {
 
 interface KanbanBoardProps {
   onUnauthorized?: (message?: string) => void
+  onChangeDatabase?: () => void
 }
 
-export const KanbanBoard: React.FC<KanbanBoardProps> = ({ onUnauthorized }) => {
+export const KanbanBoard: React.FC<KanbanBoardProps> = ({
+  onUnauthorized,
+  onChangeDatabase,
+}) => {
   const [tasks, setTasks] = useState<TasksByStatus>({})
   const [columns, setColumns] = useState<string[]>([])
+  const [databaseTitle, setDatabaseTitle] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [showAddTask, setShowAddTask] = useState(false)
@@ -46,7 +51,13 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({ onUnauthorized }) => {
     try {
       setLoading(true)
       setLoadError(null)
-      const taskList = await api.get<Task[]>('/tasks')
+
+      const [taskList, selectedDatabase] = await Promise.all([
+        api.get<Task[]>('/tasks'),
+        databaseApi.getSelected().catch(() => null),
+      ])
+
+      setDatabaseTitle(selectedDatabase?.title ?? null)
 
       const grouped: TasksByStatus = {}
       const cols: string[] = []
@@ -151,23 +162,47 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({ onUnauthorized }) => {
 
   return (
     <div className="p-4">
-      <div className="flex flex-wrap justify-between items-center gap-2 mb-4">
-        <h1 className="text-2xl font-bold text-gray-800">📊 Канбан-доска</h1>
-        <div className="flex gap-2 flex-wrap">
-          <button
-            type="button"
-            onClick={() => setShowAddTask(true)}
-            className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors text-sm"
-          >
-            ➕ Добавить задачу
-          </button>
-          <button
-            type="button"
-            onClick={() => setShowAddColumn(true)}
-            className="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors text-sm"
-          >
-            📂 Добавить колонку
-          </button>
+      <div className="mb-4 flex flex-col gap-3">
+        <div className="flex flex-wrap items-start justify-between gap-2">
+          <div className="flex min-w-0 flex-col gap-1">
+            <h1 className="text-2xl font-bold text-[var(--tg-theme-text-color,#1f2937)]">
+              📊 Канбан-доска
+            </h1>
+            {databaseTitle && (
+              <p className="truncate text-sm text-[var(--tg-theme-hint-color,#6b7280)]">
+                База: {databaseTitle}
+              </p>
+            )}
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {onChangeDatabase && (
+              <button
+                type="button"
+                onClick={onChangeDatabase}
+                className="rounded-lg px-4 py-2 text-sm transition-colors"
+                style={{
+                  backgroundColor: 'var(--tg-theme-secondary-bg-color, #f3f4f6)',
+                  color: 'var(--tg-theme-text-color, #1f2937)',
+                }}
+              >
+                ← Сменить базу
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={() => setShowAddTask(true)}
+              className="rounded-lg bg-blue-500 px-4 py-2 text-sm text-white transition-colors hover:bg-blue-600"
+            >
+              ➕ Добавить задачу
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowAddColumn(true)}
+              className="rounded-lg bg-green-500 px-4 py-2 text-sm text-white transition-colors hover:bg-green-600"
+            >
+              📂 Добавить колонку
+            </button>
+          </div>
         </div>
       </div>
 

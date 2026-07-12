@@ -7,11 +7,13 @@ import { useTelegram } from '../hooks/useTelegram'
 const SEARCH_DEBOUNCE_MS = 400
 
 interface SelectDbPageProps {
+  reselectMode?: boolean
   onDatabaseSelected?: () => void
   onUnauthorized?: (message?: string) => void
 }
 
 export const SelectDbPage: React.FC<SelectDbPageProps> = ({
+  reselectMode = false,
   onDatabaseSelected,
   onUnauthorized,
 }) => {
@@ -39,7 +41,7 @@ export const SelectDbPage: React.FC<SelectDbPageProps> = ({
         return
       }
 
-      if (canAccessKanban(status)) {
+      if (canAccessKanban(status) && !reselectMode) {
         onDatabaseSelected?.()
       }
     } catch {
@@ -47,7 +49,7 @@ export const SelectDbPage: React.FC<SelectDbPageProps> = ({
     } finally {
       setChecking(false)
     }
-  }, [user?.id, onDatabaseSelected, onUnauthorized])
+  }, [user?.id, reselectMode, onDatabaseSelected, onUnauthorized])
 
   useEffect(() => {
     if (isReady) {
@@ -125,10 +127,12 @@ export const SelectDbPage: React.FC<SelectDbPageProps> = ({
     <div className="mx-auto flex w-full max-w-lg flex-col gap-5 p-6">
       <div className="flex flex-col gap-2">
         <h1 className="text-xl font-semibold text-[var(--tg-theme-text-color,#1f2937)]">
-          Выберите базу данных
+          {reselectMode ? 'Сменить базу данных' : 'Выберите базу данных'}
         </h1>
         <p className="text-sm text-[var(--tg-theme-hint-color,#6b7280)]">
-          Найдите базу с задачами в вашем Notion workspace.
+          {reselectMode
+            ? 'Выберите другую базу с задачами в вашем Notion workspace.'
+            : 'Найдите базу с задачами в вашем Notion workspace.'}
         </p>
       </div>
 

@@ -97,6 +97,7 @@ export const authApi = {
 }
 
 export const databaseApi = {
+  getSelected: () => api.get<NotionDatabase>('/notion/databases/selected'),
   search: (query: string) =>
     api.get<NotionDatabase[]>('/notion/databases/search', {
       params: { query },

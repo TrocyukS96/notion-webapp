@@ -26,6 +26,7 @@ function App() {
   const [authMessage, setAuthMessage] = useState<string | null>(null)
   const [oauthReturn, setOauthReturn] = useState<OAuthReturnState | null>(null)
   const [bootstrapped, setBootstrapped] = useState(false)
+  const [reselectDatabase, setReselectDatabase] = useState(false)
   const resolveInFlight = useRef(false)
   const pendingFromOAuth = useRef(false)
 
@@ -98,9 +99,20 @@ function App() {
     clearOAuthPending()
     clearOAuthReturnParams()
     setOauthReturn(null)
+    setReselectDatabase(false)
     setAuthMessage('Сессия Notion удалена.')
     setStep('auth')
   }, [])
+
+  const handleChangeDatabase = useCallback(() => {
+    setReselectDatabase(true)
+    setStep('select-db')
+  }, [])
+
+  const handleDatabaseSelected = useCallback(() => {
+    setReselectDatabase(false)
+    void resolveStep()
+  }, [resolveStep])
 
   useEffect(() => {
     if (!isReady || bootstrapped) return
@@ -197,12 +209,18 @@ function App() {
       case 'select-db':
         return (
           <SelectDbPage
-            onDatabaseSelected={() => resolveStep()}
+            reselectMode={reselectDatabase}
+            onDatabaseSelected={handleDatabaseSelected}
             onUnauthorized={handleUnauthorized}
           />
         )
       case 'board':
-        return <KanbanBoard onUnauthorized={handleUnauthorized} />
+        return (
+          <KanbanBoard
+            onUnauthorized={handleUnauthorized}
+            onChangeDatabase={handleChangeDatabase}
+          />
+        )
     }
   }
 
