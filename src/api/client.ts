@@ -79,6 +79,13 @@ export const tasksApi = {
   deleteTask: (taskId: string) => api.delete<void>(`/tasks/${taskId}`),
 }
 
+export const columnsApi = {
+  list: () => api.get<string[]>('/columns'),
+  create: (title: string) => api.post<{ status: string; title: string }>('/columns', { title }),
+  delete: (title: string) =>
+    api.delete<{ status: string; title: string }>('/columns', { data: { title } }),
+}
+
 export const userApi = {
   getMe: () => api.get<User>('/users/me'),
 }

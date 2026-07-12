@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from 'react'
 import type React from 'react'
-import { api } from '../api/client'
+import { columnsApi } from '../api/client'
 
 interface AddColumnModalProps {
   onClose: () => void
@@ -13,6 +13,7 @@ export const AddColumnModal: React.FC<AddColumnModalProps> = ({
 }) => {
   const [title, setTitle] = useState('')
   const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
@@ -20,11 +21,13 @@ export const AddColumnModal: React.FC<AddColumnModalProps> = ({
 
     try {
       setLoading(true)
-      await api.post('/columns', { title: title.trim() })
+      setError(null)
+      await columnsApi.create(title.trim())
       onSuccess()
       onClose()
-    } catch (error) {
-      console.error('Error creating column:', error)
+    } catch (submitError) {
+      console.error('Error creating column:', submitError)
+      setError('Не удалось добавить колонку')
     } finally {
       setLoading(false)
     }
@@ -49,6 +52,11 @@ export const AddColumnModal: React.FC<AddColumnModalProps> = ({
             className="tg-field"
             autoFocus
           />
+          {error && (
+            <p className="text-sm text-red-500" role="alert">
+              {error}
+            </p>
+          )}
           <div className="flex gap-2 justify-end pt-2">
             <button
               type="button"
